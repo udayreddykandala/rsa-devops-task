@@ -1,10 +1,4 @@
 trigger:
-- task: OctopusCreateRelease@7
-  inputs:
-    OctoConnectedServiceName: 'octopus-conn'
-    Space: 'Demo'
-    Project: 'rsa-devops-task'
-    ReleaseNumber: '1.0'
   branches:
     include:
       - main
