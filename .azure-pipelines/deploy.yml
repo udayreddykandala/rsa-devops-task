@@ -1,0 +1,36 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: rsa-devops-vars
+
+stages:
+- stage: Terraform
+  displayName: "Terraform Infrastructure"
+  jobs:
+  - job: Terraform
+    steps:
+    - checkout: self
+
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: 'latest'
+
+    - task: TerraformCLI@1
+      displayName: 'Terraform Init'
+      inputs:
+        command: 'init'
+        workingDirectory: 'infra'
+
+    - task: TerraformCLI@1
+      displayName: 'Terraform Apply'
+      inputs:
+        command: 'apply'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+        args: '-auto-approve'
