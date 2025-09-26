@@ -1,4 +1,8 @@
 trigger:
+- task: TerraformTask@5
+  inputs:
+    provider: 'azurerm'
+    command: 'init'
   branches:
     include:
       - main
