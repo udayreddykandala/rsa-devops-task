@@ -68,8 +68,3 @@ variable "github_branch" {
 variable "alert_email" {
   type = string
 }
-
-# ✅ Add this missing variable
-variable "azure_subscription_id" {
-  type = string
-}
