@@ -32,8 +32,20 @@ jobs:
 
       - name: Terraform Plan
         working-directory: infra
-        run: terraform plan -var="admin_password=${{ secrets.TF_VAR_ADMIN_PASSWORD }}" -var="allowed_rdp_cidr=93.107.67.187/32" -var="octopus_url=${{ secrets.OCTOPUS_URL }}" -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" -var="octopus_environment=${{ secrets.OCTOPUS_ENVIRONMENT }}" -var="octopus_roles=web" -var="alert_email=udayreddy2451@gmail.com"
+        run: |
+          terraform plan -input=false \
+            -var="admin_password=${{ secrets.TF_VAR_ADMIN_PASSWORD }}" \
+            -var="allowed_rdp_cidr=93.107.67.187/32" \
+            -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+            -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+            -var="alert_email=udayreddy2451@gmail.com"
 
       - name: Terraform Apply
         working-directory: infra
-        run: terraform apply -auto-approve -var="admin_password=${{ secrets.TF_VAR_ADMIN_PASSWORD }}" -var="allowed_rdp_cidr=93.107.67.187/32" -var="octopus_url=${{ secrets.OCTOPUS_URL }}" -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" -var="octopus_environment=${{ secrets.OCTOPUS_ENVIRONMENT }}" -var="octopus_roles=web" -var="alert_email=udayreddy2451@gmail.com"
+        run: |
+          terraform apply -auto-approve -input=false \
+            -var="admin_password=${{ secrets.TF_VAR_ADMIN_PASSWORD }}" \
+            -var="allowed_rdp_cidr=93.107.67.187/32" \
+            -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+            -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+            -var="alert_email=udayreddy2451@gmail.com"
