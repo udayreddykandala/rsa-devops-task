@@ -2,6 +2,9 @@ variable "prefix" {
   type    = string
   default = "rsadevops"
 }
+variable "azure_subscription_id" {
+  type = string
+}
 
 variable "admin_password" {
   type      = string
