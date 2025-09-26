@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -47,9 +47,10 @@ jobs:
             -var="octopus_roles=web"
 
       - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
         working-directory: infra
         run: |
-          terraform apply -input=false -auto-approve \
+          terraform apply -auto-approve -input=false \
             -var="admin_password=${{ secrets.ADMIN_PASSWORD }}" \
             -var="allowed_rdp_cidr=93.107.67.187/32" \
             -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
