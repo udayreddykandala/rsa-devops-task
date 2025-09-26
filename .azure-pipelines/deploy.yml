@@ -6,6 +6,18 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-steps:
-- script: echo "Hello, Azure DevOps!"
-  displayName: "Test pipeline works"
+variables:
+  - group: rsa-devops-vars
+
+stages:
+- stage: Terraform
+  displayName: "Terraform Infrastructure"
+  jobs:
+  - job: Terraform
+    displayName: "Run Terraform"
+    steps:
+    # Install Terraform
+    - task: TerraformInstaller@1
+      inputs:
+        terraformVersion: '1.5.7'
+
