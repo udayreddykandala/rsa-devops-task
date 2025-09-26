@@ -38,7 +38,13 @@ jobs:
             -var="allowed_rdp_cidr=93.107.67.187/32" \
             -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
             -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-            -var="alert_email=udayreddy2451@gmail.com"
+            -var="alert_email=udayreddy2451@gmail.com" \
+            -var="github_owner=udayreddykandala" \
+            -var="github_repo=rsa-devops-task" \
+            -var="github_branch=main" \
+            -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" \
+            -var="octopus_environment=${{ secrets.OCTOPUS_ENVIRONMENT }}" \
+            -var="octopus_roles=web"
 
       - name: Terraform Apply
         working-directory: infra
@@ -48,4 +54,10 @@ jobs:
             -var="allowed_rdp_cidr=93.107.67.187/32" \
             -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
             -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-            -var="alert_email=udayreddy2451@gmail.com"
+            -var="alert_email=udayreddy2451@gmail.com" \
+            -var="github_owner=udayreddykandala" \
+            -var="github_repo=rsa-devops-task" \
+            -var="github_branch=main" \
+            -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" \
+            -var="octopus_environment=${{ secrets.OCTOPUS_ENVIRONMENT }}" \
+            -var="octopus_roles=web"
