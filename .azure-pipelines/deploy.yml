@@ -14,12 +14,11 @@ stages:
   displayName: "Terraform Infrastructure"
   jobs:
   - job: Terraform
+    displayName: "Run Terraform"
     steps:
-    - checkout: self
-
     - task: TerraformInstaller@1
       inputs:
-        terraformVersion: 'latest'
+        terraformVersion: '1.5.7'
 
     - task: TerraformCLI@1
       displayName: 'Terraform Init'
@@ -28,9 +27,32 @@ stages:
         workingDirectory: 'infra'
 
     - task: TerraformCLI@1
+      displayName: 'Terraform Plan'
+      inputs:
+        command: 'plan'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+
+    - task: TerraformCLI@1
       displayName: 'Terraform Apply'
       inputs:
         command: 'apply'
         workingDirectory: 'infra'
         environmentServiceName: 'azure-rm-conn'
-        args: '-auto-approve'
+        commandOptions: '-auto-approve'
+
+- stage: Deploy
+  displayName: "Deploy to Octopus"
+  dependsOn: Terraform
+  jobs:
+  - job: OctopusDeploy
+    displayName: "Deploy via Octopus"
+    steps:
+    - task: OctopusCreateRelease@4
+      displayName: "Create Octopus Release"
+      inputs:
+        OctoConnectedServiceName: 'Octopus-Connection'
+        Space: 'Demo'
+        Project: 'rsa-devops-task'
+        ReleaseNumber: '1.0.$(Build.BuildId)'
+        DeployTo: 'Prod'
