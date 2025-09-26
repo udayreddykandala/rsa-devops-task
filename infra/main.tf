@@ -1,252 +1,189 @@
 terraform {
-  required_version = ">= 1.5.0"
   required_providers {
-    azurerm = { source = "hashicorp/azurerm", version = ">= 4.0.0" }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
 provider "azurerm" {
-   features {} 
-   }
-
-# ------------------ Resource Group ------------------
-resource "azurerm_resource_group" "rg" {
-  name     = "${var.prefix}-rg"
-  location = var.location
+  features {}
+  subscription_id = var.azure_subscription_id
 }
 
-# ------------------ Networking ------------------
-resource "azurerm_virtual_network" "vnet" {
-  name                = "${var.prefix}-vnet"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  address_space       = ["10.10.0.0/16"]
+# ----------------------------
+# Resource Group (data source)
+# ----------------------------
+data "azurerm_resource_group" "rg" {
+  name = "rg-devops-task"
 }
 
+data "azurerm_virtual_network" "vnet" {
+  name                = "vnet-devops-task"
+  resource_group_name = data.azurerm_resource_group.rg.name
+}
+
+data "azurerm_public_ip" "lb_pip" {
+  name                = "pip-lb"
+  resource_group_name = data.azurerm_resource_group.rg.name
+}
+
+# ----------------------------
+# Subnet
+# ----------------------------
 resource "azurerm_subnet" "subnet" {
-  name                 = "web"
-  resource_group_name  = azurerm_resource_group.rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.10.1.0/24"]
+  name                 = "${var.prefix}-subnet"
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  virtual_network_name = data.azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
 }
 
-resource "azurerm_network_security_group" "nsg" {
-  name                = "${var.prefix}-nsg"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  security_rule {
-    name                       = "allow-http-80"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "rdp-myip"
-    priority                   = 110
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "3389"
-    source_address_prefix      = var.allowed_rdp_cidr
-    destination_address_prefix = "*"
-  }
-}
-
-resource "azurerm_subnet_network_security_group_association" "subnet_nsg" {
-  subnet_id                 = azurerm_subnet.subnet.id
-  network_security_group_id = azurerm_network_security_group.nsg.id
-}
-
-# ------------------ Public Load Balancer ------------------
-resource "azurerm_public_ip" "pip" {
-  name                = "${var.prefix}-pip"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  zones               = ["1", "2"]
-}
-
+# ----------------------------
+# Load Balancer
+# ----------------------------
 resource "azurerm_lb" "lb" {
   name                = "${var.prefix}-lb"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
   sku                 = "Standard"
 
   frontend_ip_configuration {
-    name                 = "public"
-    public_ip_address_id = azurerm_public_ip.pip.id
+    name                 = "PublicIPAddress"
+    public_ip_address_id = data.azurerm_public_ip.lb_pip.id
   }
 }
 
 resource "azurerm_lb_backend_address_pool" "bepool" {
-  name            = "webpool"
+  name            = "BackendPool"
   loadbalancer_id = azurerm_lb.lb.id
 }
 
-resource "azurerm_lb_probe" "probe" {
-  name            = "http"
+resource "azurerm_lb_probe" "http_probe" {
+  name            = "http-probe"
   loadbalancer_id = azurerm_lb.lb.id
   protocol        = "Tcp"
   port            = 80
 }
 
 resource "azurerm_lb_rule" "http_rule" {
-  name                           = "http80"
+  name                           = "http-rule"
   loadbalancer_id                = azurerm_lb.lb.id
   protocol                       = "Tcp"
   frontend_port                  = 80
   backend_port                   = 80
-  frontend_ip_configuration_name = "public"
+  frontend_ip_configuration_name = "PublicIPAddress"
   backend_address_pool_ids       = [azurerm_lb_backend_address_pool.bepool.id]
-  probe_id                       = azurerm_lb_probe.probe.id
+  probe_id                       = azurerm_lb_probe.http_probe.id
 }
 
 # NAT rules for RDP
 resource "azurerm_lb_nat_rule" "rdp_nat" {
   count                          = 2
-  name                           = "rdp-${count.index}"
-  resource_group_name            = azurerm_resource_group.rg.name
+  name                           = "rdp-nat-${count.index}"
+  resource_group_name            = data.azurerm_resource_group.rg.name
   loadbalancer_id                = azurerm_lb.lb.id
   protocol                       = "Tcp"
-  frontend_ip_configuration_name = "public"
+  frontend_ip_configuration_name = "PublicIPAddress"
   frontend_port                  = 50001 + count.index
   backend_port                   = 3389
 }
 
-# ------------------ NICs ------------------
+# ----------------------------
+# NICs
+# ----------------------------
 resource "azurerm_network_interface" "nic" {
   count               = 2
-  name                = "${var.prefix}-nic-${count.index}"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  name                = "nic-${count.index}"
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
 
   ip_configuration {
-    name                          = "ipcfg"
+    name                          = "ipconfig-${count.index}"
     subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
-    load_balancer_backend_address_pool_ids = [
-      azurerm_lb_backend_address_pool.bepool.id
-    ]
   }
+}
+
+resource "azurerm_network_interface_backend_address_pool_association" "nic_bepool" {
+  count                   = 2
+  network_interface_id    = azurerm_network_interface.nic[count.index].id
+  ip_configuration_name   = "ipconfig-${count.index}"
+  backend_address_pool_id = azurerm_lb_backend_address_pool.bepool.id
 }
 
 resource "azurerm_network_interface_nat_rule_association" "nic_nat" {
   count                 = 2
   network_interface_id  = azurerm_network_interface.nic[count.index].id
-  ip_configuration_name = "ipcfg"
+  ip_configuration_name = "ipconfig-${count.index}"
   nat_rule_id           = azurerm_lb_nat_rule.rdp_nat[count.index].id
 }
 
-# ------------------ Windows VMs ------------------
+# ----------------------------
+# Windows VMs + IIS
+# ----------------------------
+resource "random_password" "admin" {
+  length  = 16
+  special = true
+}
+
 resource "azurerm_windows_virtual_machine" "vm" {
-  count                 = 2
-  name                  = "${var.prefix}-vm-${count.index}"
-  resource_group_name   = azurerm_resource_group.rg.name
-  location              = azurerm_resource_group.rg.location
-  size                  = var.vm_size
-  admin_username        = var.admin_username
-  admin_password        = var.admin_password
+  count                = 2
+  name                 = "winvm-${count.index}"
+  location             = data.azurerm_resource_group.rg.location
+  resource_group_name  = data.azurerm_resource_group.rg.name
+  size                 = var.vm_size
+  admin_username       = var.admin_username
+  admin_password       = var.admin_password
   network_interface_ids = [azurerm_network_interface.nic[count.index].id]
-  zone                  = count.index == 0 ? "1" : "2"
 
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
+    storage_account_type = "Standard_LRS"
   }
 
   source_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer     = "WindowsServer"
-    sku       = "2022-datacenter-azure-edition"
+    sku       = "2019-Datacenter"
     version   = "latest"
   }
 }
 
-# ------------------ Bootstrap: IIS + Tentacle ------------------
-resource "azurerm_virtual_machine_extension" "cse" {
+resource "azurerm_virtual_machine_extension" "iis" {
   count                = 2
-  name                 = "octopus-bootstrap"
+  name                 = "iis-install-${count.index}"
   virtual_machine_id   = azurerm_windows_virtual_machine.vm[count.index].id
   publisher            = "Microsoft.Compute"
   type                 = "CustomScriptExtension"
   type_handler_version = "1.10"
 
-  protected_settings = jsonencode({
-    commandToExecute = "powershell -ExecutionPolicy Bypass -File install_tentacle.ps1 -OctopusUrl '${var.octopus_url}' -ApiKey '${var.octopus_api_key}' -Space '${var.octopus_space}' -Environment '${var.octopus_environment}' -Roles '${var.octopus_roles}'"
-    fileUris = [
-      "https://raw.githubusercontent.com/${var.github_owner}/${var.github_repo}/${var.github_branch}/infra/scripts/install_tentacle.ps1"
-    ]
-  })
+  settings = <<SETTINGS
+{
+  "commandToExecute": "powershell Install-WindowsFeature Web-Server; powershell New-NetFirewallRule -DisplayName 'Allow HTTP' -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow; powershell Set-Content -Path 'C:\\\\inetpub\\\\wwwroot\\\\index.html' -Value 'Hello from VM ${count.index}'"
+}
+SETTINGS
 }
 
-# ------------------ Monitoring ------------------
-resource "azurerm_application_insights" "appi" {
-  name                = "${var.prefix}-appi"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-  application_type    = "web"
+# ----------------------------
+# Outputs
+# ----------------------------
+output "lb_public_ip" {
+  value = data.azurerm_public_ip.lb_pip.ip_address
 }
 
-resource "azurerm_monitor_action_group" "ag" {
-  name                = "${var.prefix}-ag"
-  resource_group_name = azurerm_resource_group.rg.name
-  short_name          = "alert"
-
-  email_receiver {
-    name          = "ops"
-    email_address = var.alert_email
+output "rdp_endpoints" {
+  value = {
+    vm0 = "RDP -> ${data.azurerm_public_ip.lb_pip.ip_address}:50001"
+    vm1 = "RDP -> ${data.azurerm_public_ip.lb_pip.ip_address}:50002"
   }
 }
 
-resource "azurerm_application_insights_web_test" "webtest" {
-  name                    = "${var.prefix}-ping"
-  resource_group_name     = azurerm_resource_group.rg.name
-  location                = azurerm_resource_group.rg.location
-  application_insights_id = azurerm_application_insights.appi.id
-  kind                    = "ping"
-  frequency               = 300
-  timeout                 = 30
-  enabled                 = true
-  geo_locations           = ["emea-nl-ams-azr", "emea-ru-msa-edge"]
-
-  configuration = <<XML
-<WebTest Name="ping" Id="00000000-0000-0000-0000-000000000000" Enabled="True" CssProjectStructure="" CssIteration="" Timeout="30" WorkItemIds="" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
-  <Items>
-    <Request Method="GET" Guid="11111111-1111-1111-1111-111111111111" Version="1.1" Url="http://${azurerm_public_ip.pip.ip_address}/" ThinkTime="0" Timeout="30" ParseDependentRequests="False" FollowRedirects="True" RecordResult="True" Cache="False" ResponseTimeGoal="0" Encoding="utf-8" ExpectedHttpStatusCode="200" ExpectedResponseUrl="" ReportingName="" IgnoreHttpStatusCode="False" />
-  </Items>
-</WebTest>
-XML
-
-  tags = {
-    "hidden-link:${azurerm_application_insights.appi.id}" = "Resource"
-  }
-}
-
-resource "azurerm_monitor_metric_alert" "avail_alert" {
-  name                = "${var.prefix}-avail-alert"
-  resource_group_name = azurerm_resource_group.rg.name
-  scopes              = [azurerm_application_insights.appi.id]
-  description         = "Availability under 99%"
-  severity            = 2
-  frequency           = "PT5M"
-  window_size         = "PT15M"
-
-  criteria {
-    metric_namespace = "microsoft.insights/components"
-    metric_name      = "availabilityResults/availabilityPercentage"
-    aggregation      = "Average"
-    operator         = "LessThan"
-    threshold        = 99
-  }
-
-  action { action_group_id = azurerm_monitor_action_group.ag.id }
+output "admin_credentials" {
+  value     = { username = var.admin_username, password = random_password.admin.result }
+  sensitive = true
 }
