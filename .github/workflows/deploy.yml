@@ -13,9 +13,11 @@ jobs:
       contents: read
 
     steps:
+      # Step 1: Checkout repo
       - name: Checkout
         uses: actions/checkout@v3
 
+      # Step 2: Login to Azure using OIDC
       - name: Azure Login
         uses: azure/login@v1
         with:
@@ -23,47 +25,29 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Step 3: Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
+      # Step 4: Terraform Init
       - name: Terraform Init
         working-directory: infra
         run: terraform init
 
+      # Step 5: Terraform Plan (optional - shows changes)
       - name: Terraform Plan
         working-directory: infra
         run: terraform plan \
-          -var "prefix=rsadevops" \
-          -var "location=northeurope" \
-          -var "vm_size=Standard_B1ms" \
-          -var "admin_username=azureadmin" \
-          -var "admin_password=${{ secrets.ADMIN_PASSWORD }}" \
-          -var "allowed_rdp_cidr=93.107.67.187/32" \
-          -var "github_owner=udayreddykandala" \
-          -var "github_repo=rsa-devops-task" \
-          -var "github_branch=main" \
-          -var "octopus_url=${{ secrets.OCTOPUS_URL }}" \
-          -var "octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web" \
-          -var "alert_email=udayreddy2451@gmail.com"
+          -var="allowed_rdp_cidr=93.107.67.187/32" \
+          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+          -var="alert_email=udayreddy2451@gmail.com"
 
+      # Step 6: Terraform Apply (auto-approve)
       - name: Terraform Apply
         working-directory: infra
         run: terraform apply -auto-approve \
-          -var "prefix=rsadevops" \
-          -var "location=northeurope" \
-          -var "vm_size=Standard_B1ms" \
-          -var "admin_username=azureadmin" \
-          -var "admin_password=${{ secrets.ADMIN_PASSWORD }}" \
-          -var "allowed_rdp_cidr=93.107.67.187/32" \
-          -var "github_owner=udayreddykandala" \
-          -var "github_repo=rsa-devops-task" \
-          -var "github_branch=main" \
-          -var "octopus_url=${{ secrets.OCTOPUS_URL }}" \
-          -var "octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web" \
-          -var "alert_email=udayreddy2451@gmail.com"
+          -var="allowed_rdp_cidr=93.107.67.187/32" \
+          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+          -var="alert_email=udayreddy2451@gmail.com"
