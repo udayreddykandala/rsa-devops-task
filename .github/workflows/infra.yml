@@ -1,0 +1,75 @@
+name: infra
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'infra/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_admin_password: ${{ secrets.TF_VAR_admin_password }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: infra
+        run: terraform plan \
+          -var="prefix=rsadevops" \
+          -var="location=northeurope" \
+          -var="admin_username=azureadmin" \
+          -var="allowed_rdp_cidr=93.107.67.187/32" \
+          -var="github_owner=udayreddykandala" \
+          -var="github_repo=rsa-devops-task" \
+          -var="github_branch=main" \
+          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+          -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" \
+          -var="octopus_environment=Prod" \
+          -var="octopus_roles=web" \
+          -var="alert_email=udayreddy2451@gmail.com"
+
+      - name: Terraform Apply
+        if: github.ref_name == 'main'
+        working-directory: infra
+        run: terraform apply -auto-approve \
+          -var="prefix=rsadevops" \
+          -var="location=northeurope" \
+          -var="admin_username=azureadmin" \
+          -var="allowed_rdp_cidr=93.107.67.187/32" \
+          -var="github_owner=udayreddykandala" \
+          -var="github_repo=rsa-devops-task" \
+          -var="github_branch=main" \
+          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
+          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
+          -var="octopus_space=${{ secrets.OCTOPUS_SPACE }}" \
+          -var="octopus_environment=Prod" \
+          -var="octopus_roles=web" \
+          -var="alert_email=udayreddy2451@gmail.com"
+
+      - name: Output LB IP
+        id: out
+        working-directory: infra
+        run: |
+          ip=$(terraform output -raw lb_public_ip)
+          echo "lb_ip=$ip" >> $GITHUB_OUTPUT
+
+      - name: Save LB IP artifact
+        run: echo "${{ steps.out.outputs.lb_ip }}" > lb_ip.txt
