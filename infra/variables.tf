@@ -48,3 +48,16 @@ variable "octopus_environment" {
 variable "octopus_roles" {
   type = string
 }
+# VM Size
+variable "vm_size" {
+  description = "The size of the Azure VM"
+  type        = string
+  default     = "Standard_B2s" # Small, cost-effective VM size
+}
+
+# VM Admin Username
+variable "admin_username" {
+  description = "The admin username for the VM"
+  type        = string
+  default     = "azureadmin"
+}
