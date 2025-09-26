@@ -32,32 +32,8 @@ jobs:
 
       - name: Terraform Plan
         working-directory: infra
-        run: terraform plan -input=false \
-          -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-          -var="admin_password=${{ secrets.ADMIN_PASSWORD }}" \
-          -var="allowed_rdp_cidr=93.107.67.187/32" \
-          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
-          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-          -var="alert_email=udayreddy2451@gmail.com" \
-          -var="github_owner=udayreddykandala" \
-          -var="github_repo=rsa-devops-task" \
-          -var="github_branch=main" \
-          -var="octopus_space=Demo" \
-          -var="octopus_environment=Prod" \
-          -var="octopus_roles=web"
+        run: terraform plan -input=false -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" -var="admin_password=${{ secrets.ADMIN_PASSWORD }}" -var="allowed_rdp_cidr=93.107.67.187/32" -var="octopus_url=${{ secrets.OCTOPUS_URL }}" -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" -var="alert_email=udayreddy2451@gmail.com" -var="github_owner=udayreddykandala" -var="github_repo=rsa-devops-task" -var="github_branch=main" -var="octopus_space=Demo" -var="octopus_environment=Prod" -var="octopus_roles=web"
 
       - name: Terraform Apply
         working-directory: infra
-        run: terraform apply -auto-approve \
-          -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-          -var="admin_password=${{ secrets.ADMIN_PASSWORD }}" \
-          -var="allowed_rdp_cidr=93.107.67.187/32" \
-          -var="octopus_url=${{ secrets.OCTOPUS_URL }}" \
-          -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" \
-          -var="alert_email=udayreddy2451@gmail.com" \
-          -var="github_owner=udayreddykandala" \
-          -var="github_repo=rsa-devops-task" \
-          -var="github_branch=main" \
-          -var="octopus_space=Demo" \
-          -var="octopus_environment=Prod" \
-          -var="octopus_roles=web"
+        run: terraform apply -auto-approve -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" -var="admin_password=${{ secrets.ADMIN_PASSWORD }}" -var="allowed_rdp_cidr=93.107.67.187/32" -var="octopus_url=${{ secrets.OCTOPUS_URL }}" -var="octopus_api_key=${{ secrets.OCTOPUS_API_KEY }}" -var="alert_email=udayreddy2451@gmail.com" -var="github_owner=udayreddykandala" -var="github_repo=rsa-devops-task" -var="github_branch=main" -var="octopus_space=Demo" -var="octopus_environment=Prod" -var="octopus_roles=web"
