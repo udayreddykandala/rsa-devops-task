@@ -16,24 +16,24 @@ stages:
   - job: Terraform
     displayName: "Run Terraform"
     steps:
-    - task: TerraformInstaller@1
+    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
       inputs:
         terraformVersion: '1.5.7'
 
-    - task: TerraformCLI@1
+    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-cli-task.TerraformCLI@0
       displayName: 'Terraform Init'
       inputs:
         command: 'init'
         workingDirectory: 'infra'
 
-    - task: TerraformCLI@1
+    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-cli-task.TerraformCLI@0
       displayName: 'Terraform Plan'
       inputs:
         command: 'plan'
         workingDirectory: 'infra'
         environmentServiceName: 'azure-rm-conn'
 
-    - task: TerraformCLI@1
+    - task: ms-devlabs.custom-terraform-tasks.custom-terraform-cli-task.TerraformCLI@0
       displayName: 'Terraform Apply'
       inputs:
         command: 'apply'
