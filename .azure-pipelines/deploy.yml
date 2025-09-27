@@ -1,14 +1,10 @@
 trigger:
-- task: TerraformTask@5
-  inputs:
-    provider: 'azurerm'
-    command: 'init'
   branches:
     include:
       - main
 
 pool:
-  name: MyAgentPool   # Use your self-hosted agent pool
+  vmImage: 'ubuntu-latest'
 
 variables:
   - group: rsa-devops-vars
