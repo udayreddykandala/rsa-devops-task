@@ -4,7 +4,7 @@ trigger:
       - main
 
 pool:
-  name: MyAgentPool   # This matches your self-hosted agent pool name
+  name: MyAgentPool   # self-hosted agent you set up on Mac
 
 variables:
   - group: rsa-devops-vars
@@ -14,33 +14,46 @@ stages:
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
-    displayName: "Run Terraform"
+    displayName: "Run Terraform with Bash"
     steps:
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-installer.TerraformInstaller@1
+    - script: |
+        echo "Installing Terraform..."
+        brew install terraform || true
+        terraform -version
       displayName: "Install Terraform"
-      inputs:
-        terraformVersion: '1.5.7'
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Init'
-      inputs:
-        command: 'init'
-        workingDirectory: 'infra'
+    - script: |
+        cd infra
+        terraform init
+      displayName: "Terraform Init"
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Plan'
-      inputs:
-        command: 'plan'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+    - script: |
+        cd infra
+        terraform plan \
+          -var "azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+          -var "admin_password=$(ADMIN_PASSWORD)" \
+          -var "allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var "octopus_url=$(OCTOPUS_URL)" \
+          -var "octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var "alert_email=$(ALERT_EMAIL)" \
+          -var "octopus_space=Demo" \
+          -var "octopus_environment=Prod" \
+          -var "octopus_roles=web"
+      displayName: "Terraform Plan"
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Apply'
-      inputs:
-        command: 'apply'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: '-auto-approve -var="octopus_space=Demo" -var="octopus_environment=Prod" -var="octopus_roles=web"'
+    - script: |
+        cd infra
+        terraform apply -auto-approve \
+          -var "azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+          -var "admin_password=$(ADMIN_PASSWORD)" \
+          -var "allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var "octopus_url=$(OCTOPUS_URL)" \
+          -var "octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var "alert_email=$(ALERT_EMAIL)" \
+          -var "octopus_space=Demo" \
+          -var "octopus_environment=Prod" \
+          -var "octopus_roles=web"
+      displayName: "Terraform Apply"
 
 - stage: Deploy
   displayName: "Deploy to Octopus"
