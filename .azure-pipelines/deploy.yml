@@ -1,72 +1,82 @@
 trigger:
-  branches:
-    include:
-      - main
+- main
 
 pool:
-  name: MyAgentPool   # self-hosted agent you set up on Mac
+  name: 'Default'   # your self-hosted agent pool
 
 variables:
-  - group: rsa-devops-vars
+  buildConfiguration: 'Release'
+  terraformVersion: '1.5.7'
 
 stages:
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
-    displayName: "Run Terraform with Bash"
+    displayName: "Run Terraform with Azure DevOps"
     steps:
+    - checkout: self
+
     - script: |
-        echo "Installing Terraform..."
-        brew install terraform || true
+        curl -o terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_arm64.zip
+        unzip terraform.zip
+        sudo mv terraform /usr/local/bin/
         terraform -version
       displayName: "Install Terraform"
 
     - script: |
-        cd infra
-        terraform init
+        terraform init \
+          -backend-config="storage_account_name=$(tf_storage_account)" \
+          -backend-config="container_name=$(tf_container_name)" \
+          -backend-config="key=$(tf_state_key)" \
+          -backend-config="resource_group_name=$(tf_rg_name)" \
+          -backend-config="subscription_id=$(AZURE_SUBSCRIPTION_ID)"
       displayName: "Terraform Init"
+      workingDirectory: infra
 
     - script: |
-        cd infra
-        terraform plan \
-          -var "azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
-          -var "admin_password=$(ADMIN_PASSWORD)" \
-          -var "allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-          -var "octopus_url=$(OCTOPUS_URL)" \
-          -var "octopus_api_key=$(OCTOPUS_API_KEY)" \
-          -var "alert_email=$(ALERT_EMAIL)" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web"
+        terraform plan -out=tfplan -parallelism=10 -input=false
       displayName: "Terraform Plan"
+      workingDirectory: infra
 
     - script: |
-        cd infra
-        terraform apply -auto-approve \
-          -var "azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
-          -var "admin_password=$(ADMIN_PASSWORD)" \
-          -var "allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-          -var "octopus_url=$(OCTOPUS_URL)" \
-          -var "octopus_api_key=$(OCTOPUS_API_KEY)" \
-          -var "alert_email=$(ALERT_EMAIL)" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web"
+        terraform apply -auto-approve tfplan
       displayName: "Terraform Apply"
+      workingDirectory: infra
 
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
   jobs:
-  - job: OctopusDeploy
-    displayName: "Deploy via Octopus"
+  - job: OctopusJob
+    displayName: "Deploy App via Octopus CLI"
     steps:
-    - task: OctopusCreateRelease@4
-      displayName: "Create Octopus Release"
-      inputs:
-        OctoConnectedServiceName: 'octopus-conn'
-        Space: 'Demo'
-        Project: 'rsa-devops-task'
-        ReleaseNumber: '1.0.$(Build.BuildId)'
-        DeployTo: 'Prod'
+    - script: |
+        curl -L https://github.com/OctopusDeploy/OctopusCLI/releases/download/v9.3.7/OctopusTools.9.3.7.osx-x64.tar.gz -o octo.tar.gz
+        mkdir octo
+        tar -xzf octo.tar.gz -C octo
+        sudo mv octo/octo /usr/local/bin/
+        octo version
+
+        # Push package + create release + deploy
+        octo push \
+          --server $(OCTOPUS_SERVER) \
+          --apiKey $(OCTOPUS_API_KEY) \
+          --space $(octopus_space) \
+          --package $(Build.ArtifactStagingDirectory)/myapp.zip
+
+        octo create-release \
+          --server $(OCTOPUS_SERVER) \
+          --apiKey $(OCTOPUS_API_KEY) \
+          --space $(octopus_space) \
+          --project "MyProject" \
+          --releaseNumber 1.0.$(Build.BuildId) \
+          --packageVersion 1.0.$(Build.BuildId)
+
+        octo deploy-release \
+          --server $(OCTOPUS_SERVER) \
+          --apiKey $(OCTOPUS_API_KEY) \
+          --space $(octopus_space) \
+          --project "MyProject" \
+          --deployTo $(octopus_environment)
+      displayName: "Deploy via Octopus CLI"
