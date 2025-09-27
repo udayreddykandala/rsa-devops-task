@@ -8,19 +8,16 @@ pool:
 
 variables:
   - group: rsa-devops-vars
+  - name: OCTOPUS_SERVICE_CONN
+    value: 'Octopus-Connection'   # fallback if not overridden
 
 stages:
-# ------------------------------
-# Stage 1: Terraform Infrastructure
-# ------------------------------
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: Terraform
     displayName: "Run Terraform"
     steps:
-    - checkout: self
-
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: '1.5.7'
@@ -46,9 +43,6 @@ stages:
         environmentServiceName: 'azure-rm-conn'
         commandOptions: '-auto-approve'
 
-# ------------------------------
-# Stage 2: Deploy to Octopus
-# ------------------------------
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
@@ -56,12 +50,10 @@ stages:
   - job: OctopusDeploy
     displayName: "Deploy via Octopus"
     steps:
-    - checkout: self
-
     - task: OctopusCreateRelease@4
       displayName: "Create Octopus Release"
       inputs:
-        OctoConnectedServiceName: 'Octopus-Connection'
+        OctoConnectedServiceName: '$(OCTOPUS_SERVICE_CONN)'
         Space: 'Demo'
         Project: 'rsa-devops-task'
         ReleaseNumber: '1.0.$(Build.BuildId)'
