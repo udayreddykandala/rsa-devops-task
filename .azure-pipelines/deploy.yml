@@ -1,59 +1,59 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
 
-pool: MyAgentPool
+pool:
+  name: MyAgentPool   # your self-hosted agent pool
+
+variables:
+  - group: rsa-devops-vars
 
 stages:
-  - stage: Terraform
-    displayName: "Terraform Infrastructure"
-    jobs:
-      - job: TerraformJob
-        displayName: "Run Terraform"
-        pool: MyAgentPool
-        steps:
-          - checkout: self
+- stage: Terraform
+  displayName: "Terraform Infrastructure"
+  jobs:
+  - job: TerraformJob
+    displayName: "Run Terraform"
+    steps:
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-installer.TerraformInstaller@1
+      inputs:
+        terraformVersion: '1.5.7'
 
-          - task: TerraformInstaller@1
-            displayName: "Install Terraform"
-            inputs:
-              terraformVersion: '1.6.2'
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Init'
+      inputs:
+        command: 'init'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
 
-          - task: TerraformCLI@1
-            displayName: "Terraform Init"
-            inputs:
-              command: 'init'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Plan'
+      inputs:
+        command: 'plan'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
 
-          - task: TerraformCLI@1
-            displayName: "Terraform Plan"
-            inputs:
-              command: 'plan'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Apply'
+      inputs:
+        command: 'apply'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+        commandOptions: '-auto-approve'
 
-          - task: TerraformCLI@1
-            displayName: "Terraform Apply"
-            inputs:
-              command: 'apply'
-              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-              allowTelemetryCollection: false
-              environmentServiceName: 'Azure-Connection'   # <-- update to your actual Azure service connection
-
-  - stage: Deploy
-    displayName: "Deploy to Octopus"
-    dependsOn: Terraform
-    jobs:
-      - job: OctopusDeploy
-        displayName: "Deploy via Octopus"
-        pool: MyAgentPool
-        steps:
-          - checkout: self
-
-          - task: OctopusCreateRelease@4
-            displayName: "Create Octopus Release"
-            inputs:
-              OctoConnectedServiceName: 'Octopus-Connection'   # <-- update to your Octopus service connection
-              Space: 'Default'
-              ProjectName: 'MyProject'
-              ReleaseNumber: '$(Build.BuildNumber)'
-              Channel: 'Default'
-              DeployToEnvironments: 'Development'
+- stage: Deploy
+  displayName: "Deploy to Octopus"
+  dependsOn: Terraform
+  jobs:
+  - job: OctopusDeploy
+    displayName: "Deploy via Octopus"
+    steps:
+    - task: OctopusCreateRelease@4
+      displayName: "Create Octopus Release"
+      inputs:
+        OctoConnectedServiceName: 'octopus-conn'
+        Space: 'Demo'
+        Project: 'rsa-devops-task'
+        ReleaseNumber: '1.0.$(Build.BuildId)'
+        DeployTo: 'Prod'
