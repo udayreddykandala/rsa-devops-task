@@ -10,12 +10,17 @@ variables:
   - group: rsa-devops-vars
 
 stages:
+# ------------------------------
+# Stage 1: Terraform Infrastructure
+# ------------------------------
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: Terraform
     displayName: "Run Terraform"
     steps:
+    - checkout: self
+
     - task: TerraformInstaller@1
       inputs:
         terraformVersion: '1.5.7'
@@ -41,6 +46,9 @@ stages:
         environmentServiceName: 'azure-rm-conn'
         commandOptions: '-auto-approve'
 
+# ------------------------------
+# Stage 2: Deploy to Octopus
+# ------------------------------
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
@@ -48,6 +56,8 @@ stages:
   - job: OctopusDeploy
     displayName: "Deploy via Octopus"
     steps:
+    - checkout: self
+
     - task: OctopusCreateRelease@4
       displayName: "Create Octopus Release"
       inputs:
