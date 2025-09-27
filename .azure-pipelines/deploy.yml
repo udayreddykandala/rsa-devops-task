@@ -16,31 +16,24 @@ stages:
   - job: TerraformJob
     displayName: "Run Terraform"
     steps:
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-installer.TerraformInstaller@1
-      inputs:
-        terraformVersion: '1.5.7'
+    - script: |
+        curl -LO https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
+        unzip terraform_1.5.7_darwin_arm64.zip
+        sudo mv terraform /usr/local/bin/
+        terraform version
+      displayName: "Install Terraform"
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Init'
-      inputs:
-        command: 'init'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+    - script: terraform init
+      workingDirectory: infra
+      displayName: "Terraform Init"
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Plan'
-      inputs:
-        command: 'plan'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+    - script: terraform plan -input=false -out=tfplan
+      workingDirectory: infra
+      displayName: "Terraform Plan"
 
-    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
-      displayName: 'Terraform Apply'
-      inputs:
-        command: 'apply'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: '-auto-approve'
+    - script: terraform apply -input=false -auto-approve tfplan
+      workingDirectory: infra
+      displayName: "Terraform Apply"
 
 - stage: Deploy
   displayName: "Deploy to Octopus"
