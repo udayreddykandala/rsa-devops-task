@@ -4,7 +4,7 @@ trigger:
       - main
 
 pool:
-  name: MyAgentPool   # 👈 use your self-hosted agent pool name
+  name: MyAgentPool   # This matches your self-hosted agent pool name
 
 variables:
   - group: rsa-devops-vars
@@ -16,54 +16,31 @@ stages:
   - job: TerraformJob
     displayName: "Run Terraform"
     steps:
-    - script: |
-        echo "##vso[task.prependpath]/usr/local/bin"
-        terraform -version
-      displayName: "Verify Terraform Installed"
-
-    - task: CmdLine@2
-      displayName: "Terraform Init"
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-installer.TerraformInstaller@1
+      displayName: "Install Terraform"
       inputs:
-        script: terraform init -input=false
-        workingDirectory: infra
+        terraformVersion: '1.5.7'
 
-    - task: CmdLine@2
-      displayName: "Terraform Plan"
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Init'
       inputs:
-        script: |
-          terraform plan -input=false \
-            -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
-            -var="admin_password=$(ADMIN_PASSWORD)" \
-            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-            -var="octopus_url=$(OCTOPUS_URL)" \
-            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-            -var="alert_email=$(ALERT_EMAIL)" \
-            -var="github_owner=udayreddykandala" \
-            -var="github_repo=rsa-devops-task" \
-            -var="github_branch=main" \
-            -var="octopus_space=Demo" \
-            -var="octopus_environment=Prod" \
-            -var='octopus_roles=["web"]'
-        workingDirectory: infra
+        command: 'init'
+        workingDirectory: 'infra'
 
-    - task: CmdLine@2
-      displayName: "Terraform Apply"
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Plan'
       inputs:
-        script: |
-          terraform apply -auto-approve \
-            -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
-            -var="admin_password=$(ADMIN_PASSWORD)" \
-            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-            -var="octopus_url=$(OCTOPUS_URL)" \
-            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-            -var="alert_email=$(ALERT_EMAIL)" \
-            -var="github_owner=udayreddykandala" \
-            -var="github_repo=rsa-devops-task" \
-            -var="github_branch=main" \
-            -var="octopus_space=Demo" \
-            -var="octopus_environment=Prod" \
-            -var='octopus_roles=["web"]'
-        workingDirectory: infra
+        command: 'plan'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+
+    - task: JasonBJohnson.azure-pipelines-tasks-terraform.azure-pipelines-tasks-terraform-cli-task.TerraformCLI@1
+      displayName: 'Terraform Apply'
+      inputs:
+        command: 'apply'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+        commandOptions: '-auto-approve -var="octopus_space=Demo" -var="octopus_environment=Prod" -var="octopus_roles=web"'
 
 - stage: Deploy
   displayName: "Deploy to Octopus"
