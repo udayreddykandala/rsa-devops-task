@@ -1,60 +1,59 @@
 trigger:
-  branches:
-    include:
-      - main
+- main
 
-pool:
-  name: 'MyAgentPool'
-
-variables:
-  - group: rsa-devops-vars
-  - name: OCTOPUS_SERVICE_CONN
-    value: 'Octopus-Connection'   # fallback if not overridden
+pool: MyAgentPool
 
 stages:
-- stage: Terraform
-  displayName: "Terraform Infrastructure"
-  jobs:
-  - job: Terraform
-    displayName: "Run Terraform"
-    steps:
-    - task: TerraformInstaller@1
-      inputs:
-        terraformVersion: '1.5.7'
+  - stage: Terraform
+    displayName: "Terraform Infrastructure"
+    jobs:
+      - job: TerraformJob
+        displayName: "Run Terraform"
+        pool: MyAgentPool
+        steps:
+          - checkout: self
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Init'
-      inputs:
-        command: 'init'
-        workingDirectory: 'infra'
+          - task: TerraformInstaller@1
+            displayName: "Install Terraform"
+            inputs:
+              terraformVersion: '1.6.2'
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Plan'
-      inputs:
-        command: 'plan'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+          - task: TerraformCLI@1
+            displayName: "Terraform Init"
+            inputs:
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Apply'
-      inputs:
-        command: 'apply'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: '-auto-approve'
+          - task: TerraformCLI@1
+            displayName: "Terraform Plan"
+            inputs:
+              command: 'plan'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
 
-- stage: Deploy
-  displayName: "Deploy to Octopus"
-  dependsOn: Terraform
-  jobs:
-  - job: OctopusDeploy
-    displayName: "Deploy via Octopus"
-    steps:
-    - task: OctopusCreateRelease@4
-      displayName: "Create Octopus Release"
-      inputs:
-        OctoConnectedServiceName: '$(OCTOPUS_SERVICE_CONN)'
-        Space: 'Demo'
-        Project: 'rsa-devops-task'
-        ReleaseNumber: '1.0.$(Build.BuildId)'
-        DeployTo: 'Prod'
+          - task: TerraformCLI@1
+            displayName: "Terraform Apply"
+            inputs:
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+              allowTelemetryCollection: false
+              environmentServiceName: 'Azure-Connection'   # <-- update to your actual Azure service connection
+
+  - stage: Deploy
+    displayName: "Deploy to Octopus"
+    dependsOn: Terraform
+    jobs:
+      - job: OctopusDeploy
+        displayName: "Deploy via Octopus"
+        pool: MyAgentPool
+        steps:
+          - checkout: self
+
+          - task: OctopusCreateRelease@4
+            displayName: "Create Octopus Release"
+            inputs:
+              OctoConnectedServiceName: 'Octopus-Connection'   # <-- update to your Octopus service connection
+              Space: 'Default'
+              ProjectName: 'MyProject'
+              ReleaseNumber: '$(Build.BuildNumber)'
+              Channel: 'Default'
+              DeployToEnvironments: 'Development'
