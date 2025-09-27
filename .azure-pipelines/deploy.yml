@@ -2,81 +2,65 @@ trigger:
 - main
 
 pool:
-  name: 'Default'   # your self-hosted agent pool
+  name: 'MyAgentPool'   # ✅ your self-hosted agent pool
 
 variables:
-  buildConfiguration: 'Release'
-  terraformVersion: '1.5.7'
+  octopus_space: 'default'
+  octopus_environment: 'Dev'
+  octopus_roles: 'web'
 
 stages:
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
-    displayName: "Run Terraform with Azure DevOps"
+    displayName: "Run Terraform with CLI"
     steps:
     - checkout: self
 
     - script: |
-        curl -o terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_arm64.zip
+        echo "Installing Terraform..."
+        curl -o terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
         unzip terraform.zip
         sudo mv terraform /usr/local/bin/
         terraform -version
       displayName: "Install Terraform"
 
     - script: |
-        terraform init \
-          -backend-config="storage_account_name=$(tf_storage_account)" \
-          -backend-config="container_name=$(tf_container_name)" \
-          -backend-config="key=$(tf_state_key)" \
-          -backend-config="resource_group_name=$(tf_rg_name)" \
-          -backend-config="subscription_id=$(AZURE_SUBSCRIPTION_ID)"
+        terraform init -input=false
       displayName: "Terraform Init"
-      workingDirectory: infra
 
     - script: |
-        terraform plan -out=tfplan -parallelism=10 -input=false
+        terraform plan \
+          -var "octopus_space=$(octopus_space)" \
+          -var "octopus_environment=$(octopus_environment)" \
+          -var "octopus_roles=$(octopus_roles)" \
+          -out=tfplan
       displayName: "Terraform Plan"
-      workingDirectory: infra
 
     - script: |
         terraform apply -auto-approve tfplan
       displayName: "Terraform Apply"
-      workingDirectory: infra
 
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
   jobs:
   - job: OctopusJob
-    displayName: "Deploy App via Octopus CLI"
+    displayName: "Deploy via Octopus CLI"
     steps:
     - script: |
-        curl -L https://github.com/OctopusDeploy/OctopusCLI/releases/download/v9.3.7/OctopusTools.9.3.7.osx-x64.tar.gz -o octo.tar.gz
-        mkdir octo
-        tar -xzf octo.tar.gz -C octo
-        sudo mv octo/octo /usr/local/bin/
-        octo version
+        echo "Installing Octopus CLI..."
+        curl -s https://octopus.com/downloads/latest/OctopusTools/macos-x64 -L -o octo.tar.gz
+        mkdir octo-cli && tar xzf octo.tar.gz -C octo-cli --strip-components=1
+        sudo mv octo-cli/octo /usr/local/bin/
 
-        # Push package + create release + deploy
-        octo push \
-          --server $(OCTOPUS_SERVER) \
-          --apiKey $(OCTOPUS_API_KEY) \
-          --space $(octopus_space) \
-          --package $(Build.ArtifactStagingDirectory)/myapp.zip
-
+        echo "Creating Octopus Release..."
         octo create-release \
-          --server $(OCTOPUS_SERVER) \
-          --apiKey $(OCTOPUS_API_KEY) \
-          --space $(octopus_space) \
-          --project "MyProject" \
-          --releaseNumber 1.0.$(Build.BuildId) \
-          --packageVersion 1.0.$(Build.BuildId)
-
-        octo deploy-release \
-          --server $(OCTOPUS_SERVER) \
-          --apiKey $(OCTOPUS_API_KEY) \
-          --space $(octopus_space) \
-          --project "MyProject" \
-          --deployTo $(octopus_environment)
-      displayName: "Deploy via Octopus CLI"
+          --project="MyProject" \
+          --releaseNumber="1.0.$(Build.BuildId)" \
+          --server="$(OCTOPUS_HOST)" \
+          --apiKey="$(OCTOPUS_APIKEY)" \
+          --space "$(octopus_space)" \
+          --deployTo "$(octopus_environment)"
+      displayName: "Octopus Deploy"
