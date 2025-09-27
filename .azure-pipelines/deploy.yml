@@ -1,69 +1,70 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
 
 pool:
-  name: MyAgentPool
+  name: MyAgentPool   # 👈 use your self-hosted agent pool name
+
+variables:
+  - group: rsa-devops-vars
 
 stages:
-# =============================
-# Stage 1: Terraform
-# =============================
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
     displayName: "Run Terraform"
     steps:
-    - checkout: self
+    - script: |
+        echo "##vso[task.prependpath]/usr/local/bin"
+        terraform -version
+      displayName: "Verify Terraform Installed"
 
-    # Install Terraform (latest ARM64 build for macOS/Linux agent)
     - task: CmdLine@2
-      displayName: "Install Terraform"
-      inputs:
-        script: |
-          curl -LO https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
-          unzip terraform_1.5.7_darwin_arm64.zip
-          sudo mv terraform /usr/local/bin/
-
-    # Terraform Init
-    - task: TerraformCLI@1
       displayName: "Terraform Init"
       inputs:
-        provider: 'azurerm'
-        command: 'init'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-        environmentServiceName: 'azure-rm-conn'
+        script: terraform init -input=false
+        workingDirectory: infra
 
-    # Terraform Plan with vars
-    - task: TerraformCLI@1
+    - task: CmdLine@2
       displayName: "Terraform Plan"
       inputs:
-        provider: 'azurerm'
-        command: 'plan'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: >
-          -var "octopus_space=Demo"
-          -var "octopus_environment=Prod"
-          -var "octopus_roles=[\"web\"]"
+        script: |
+          terraform plan -input=false \
+            -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+            -var="admin_password=$(ADMIN_PASSWORD)" \
+            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+            -var="octopus_url=$(OCTOPUS_URL)" \
+            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+            -var="alert_email=$(ALERT_EMAIL)" \
+            -var="github_owner=udayreddykandala" \
+            -var="github_repo=rsa-devops-task" \
+            -var="github_branch=main" \
+            -var="octopus_space=Demo" \
+            -var="octopus_environment=Prod" \
+            -var='octopus_roles=["web"]'
+        workingDirectory: infra
 
-    # Terraform Apply with vars
-    - task: TerraformCLI@1
+    - task: CmdLine@2
       displayName: "Terraform Apply"
       inputs:
-        provider: 'azurerm'
-        command: 'apply'
-        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: >
-          -auto-approve
-          -var "octopus_space=Demo"
-          -var "octopus_environment=Prod"
-          -var "octopus_roles=[\"web\"]"
+        script: |
+          terraform apply -auto-approve \
+            -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+            -var="admin_password=$(ADMIN_PASSWORD)" \
+            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+            -var="octopus_url=$(OCTOPUS_URL)" \
+            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+            -var="alert_email=$(ALERT_EMAIL)" \
+            -var="github_owner=udayreddykandala" \
+            -var="github_repo=rsa-devops-task" \
+            -var="github_branch=main" \
+            -var="octopus_space=Demo" \
+            -var="octopus_environment=Prod" \
+            -var='octopus_roles=["web"]'
+        workingDirectory: infra
 
-# =============================
-# Stage 2: Octopus Deployment
-# =============================
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
