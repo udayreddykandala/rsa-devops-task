@@ -25,21 +25,21 @@ stages:
       displayName: 'Terraform Init'
       inputs:
         command: 'init'
-        workingDirectory: '.'
+        workingDirectory: 'infra'
         environmentServiceName: 'azure-rm-conn'
 
     - task: TerraformCLI@1
       displayName: 'Terraform Plan'
       inputs:
         command: 'plan'
-        workingDirectory: '.'
+        workingDirectory: 'infra'
         environmentServiceName: 'azure-rm-conn'
 
     - task: TerraformCLI@1
       displayName: 'Terraform Apply'
       inputs:
         command: 'apply'
-        workingDirectory: '.'
+        workingDirectory: 'infra'
         environmentServiceName: 'azure-rm-conn'
         commandOptions: '-auto-approve'
 
