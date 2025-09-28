@@ -4,35 +4,59 @@ trigger:
       - main
 
 pool:
-  name: MyAgentPool
+  name: MyAgentPool   # use your self-hosted pool
 
 variables:
   - group: rsa-devops-vars
 
 stages:
-# Terraform Stage
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
     displayName: "Run Terraform"
     steps:
-    - script: terraform --version
-      displayName: "Check Terraform Version"
+    - script: |
+        terraform -version
+      displayName: "Check Terraform version"
 
-    - script: terraform init
+    - script: |
+        cd infra
+        terraform init
       displayName: "Terraform Init"
-      workingDirectory: infra
 
-    - script: terraform plan -input=false -out=tfplan
+    - script: |
+        cd infra
+        terraform plan -input=false \
+          -var="admin_password=$(ADMIN_PASSWORD)" \
+          -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var="octopus_url=$(OCTOPUS_URL)" \
+          -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var="alert_email=$(ALERT_EMAIL)" \
+          -var="github_owner=udayreddykandala" \
+          -var="github_repo=rsa-devops-task" \
+          -var="github_branch=main" \
+          -var="octopus_space=Demo" \
+          -var="octopus_environment=Prod" \
+          -var="octopus_roles=web"
       displayName: "Terraform Plan"
-      workingDirectory: infra
 
-    - script: terraform apply -input=false -auto-approve tfplan
+    - script: |
+        cd infra
+        terraform apply -input=false -auto-approve \
+          -var="admin_password=$(ADMIN_PASSWORD)" \
+          -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var="octopus_url=$(OCTOPUS_URL)" \
+          -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var="alert_email=$(ALERT_EMAIL)" \
+          -var="github_owner=udayreddykandala" \
+          -var="github_repo=rsa-devops-task" \
+          -var="github_branch=main" \
+          -var="octopus_space=Demo" \
+          -var="octopus_environment=Prod" \
+          -var="octopus_roles=web"
       displayName: "Terraform Apply"
-      workingDirectory: infra
 
-# Octopus Deploy Stage
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
@@ -40,26 +64,21 @@ stages:
   - job: OctopusJob
     displayName: "Octopus Deployment"
     steps:
-    - task: OctopusPush@4
-      displayName: "Push package to Octopus"
-      inputs:
-        OctoConnectedServiceName: 'octopus-conn'
-        Space: '$(octopus_space)'
-        Package: '**/*.zip'
+    - script: |
+        echo "Installing Octopus CLI..."
+        curl -s https://octopus.com/downloads/latest/octopuscli -o octo.tar.gz
+        mkdir octo
+        tar xzf octo.tar.gz -C octo --strip-components=1
+        sudo mv octo/octo /usr/local/bin/
+        octo version
+      displayName: "Install Octopus CLI"
 
-    - task: OctopusCreateRelease@4
-      displayName: "Create Release in Octopus"
-      inputs:
-        OctoConnectedServiceName: 'octopus-conn'
-        Space: '$(octopus_space)'
-        Project: 'rsa-devops-task'
-        ReleaseNumber: '1.0.$(Build.BuildId)'
-
-    - task: OctopusDeployRelease@4
-      displayName: "Deploy Release to Prod"
-      inputs:
-        OctoConnectedServiceName: 'octopus-conn'
-        Space: '$(octopus_space)'
-        Project: 'rsa-devops-task'
-        ReleaseNumber: '1.0.$(Build.BuildId)'
-        DeployTo: 'Prod'
+    - script: |
+        octo create-release \
+          --server "$(OCTOPUS_URL)" \
+          --apiKey "$(OCTOPUS_API_KEY)" \
+          --project "rsa-devops-task" \
+          --space "Demo" \
+          --deployTo "Prod" \
+          --releaseNumber "1.0.$(Build.BuildId)"
+      displayName: "Create and Deploy Octopus Release"
