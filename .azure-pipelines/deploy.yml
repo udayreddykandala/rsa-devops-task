@@ -5,31 +5,52 @@ pool:
   name: MyAgentPool
 
 stages:
-  - stage: Terraform
-    displayName: "Terraform Infrastructure"
-    jobs:
-      - job: TerraformJob
-        displayName: "Run Terraform"
-        steps:
-          - checkout: self
+- stage: Terraform
+  displayName: "Terraform Infrastructure"
+  jobs:
+  - job: TerraformJob
+    displayName: "Run Terraform locally"
+    steps:
+    - checkout: self
 
-          - task: TerraformInstaller@1
-            displayName: Install Terraform
-            inputs:
-              terraformVersion: '1.5.7'
+    # Install Terraform (latest)
+    - task: TerraformInstaller@0
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: 'latest'
 
-          - task: TerraformCLI@1
-            displayName: Terraform Init
-            inputs:
-              command: 'init'
-              workingDirectory: 'infra'
-              backendType: 'azurerm'
-              backendServiceArm: 'azure-rm-conn'
-              ensureBackend: true
+    # Terraform Init (LOCAL backend, no Azure storage account)
+    - task: TerraformCLI@0
+      displayName: "Terraform Init"
+      inputs:
+        command: 'init'
+        workingDirectory: 'infra'
 
-          - task: TerraformCLI@1
-            displayName: Terraform Plan
-            inputs:
-              command: 'plan'
-              workingDirectory: 'infra'
-              environmentServiceName: 'azure-rm-conn'
+    # Terraform Plan
+    - task: TerraformCLI@0
+      displayName: "Terraform Plan"
+      inputs:
+        command: 'plan'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+        commandOptions: |
+          -var "admin_username=udayadmin" \
+          -var "admin_password=MyStrongPassw0rd!" \
+          -var "octopus_space=Demo" \
+          -var "octopus_environment=Prod" \
+          -var "octopus_roles=web"
+
+    # Terraform Apply (auto approve)
+    - task: TerraformCLI@0
+      displayName: "Terraform Apply"
+      inputs:
+        command: 'apply'
+        workingDirectory: 'infra'
+        environmentServiceName: 'azure-rm-conn'
+        commandOptions: |
+          -auto-approve \
+          -var "admin_username=udayadmin" \
+          -var "admin_password=MyStrongPassw0rd!" \
+          -var "octopus_space=Demo" \
+          -var "octopus_environment=Prod" \
+          -var "octopus_roles=web"
