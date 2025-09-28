@@ -4,76 +4,32 @@ trigger:
 pool:
   name: MyAgentPool
 
-parameters:
-- name: tf_action
-  type: string
-  default: init
-  values:
-  - init
-  - plan
-  - apply
-
 stages:
-- stage: Terraform
-  displayName: "Terraform Infrastructure"
-  jobs:
-  - job: TerraformJob
-    displayName: "Run Terraform with CLI"
-    pool:
-      name: MyAgentPool
-    steps:
-    - checkout: self
+  - stage: Terraform
+    displayName: "Terraform Infrastructure"
+    jobs:
+      - job: TerraformJob
+        displayName: "Run Terraform"
+        steps:
+          - checkout: self
 
-    # Install Terraform manually (since marketplace tasks are unreliable on your setup)
-    - script: |
-        echo "Installing Terraform..."
-        mkdir -p $(Pipeline.Workspace)/tfbin
-        curl -sLo $(Pipeline.Workspace)/tfbin/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
-        unzip -o $(Pipeline.Workspace)/tfbin/terraform.zip -d $(Pipeline.Workspace)/tfbin
-        echo "##vso[task.prependpath]$(Pipeline.Workspace)/tfbin"
-        terraform -version
-      displayName: "Install Terraform"
+          - task: TerraformInstaller@1
+            displayName: Install Terraform
+            inputs:
+              terraformVersion: '1.5.7'
 
-    # Terraform Init
-    - ${{ if eq(parameters.tf_action, 'init') }}:
-      - script: |
-          terraform -chdir=infra init -input=false
-        displayName: "Terraform Init"
+          - task: TerraformCLI@1
+            displayName: Terraform Init
+            inputs:
+              command: 'init'
+              workingDirectory: 'infra'
+              backendType: 'azurerm'
+              backendServiceArm: 'azure-rm-conn'
+              ensureBackend: true
 
-    # Terraform Plan
-    - ${{ if eq(parameters.tf_action, 'plan') }}:
-      - script: |
-          terraform -chdir=infra plan -input=false -out=tfplan \
-            -var="admin_password=$(ADMIN_PASSWORD)" \
-            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-            -var="octopus_url=$(OCTOPUS_URL)" \
-            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-            -var="alert_email=$(ALERT_EMAIL)" \
-            -var="github_owner=udayreddykandala" \
-            -var="github_repo=rsa-devops-task" \
-            -var="github_branch=main" \
-            -var="octopus_space=Demo" \
-            -var="octopus_environment=Prod" \
-            -var='octopus_roles=["web"]'
-        displayName: "Terraform Plan"
-
-    # Terraform Apply
-    - ${{ if eq(parameters.tf_action, 'apply') }}:
-      - script: |
-          if [ -f infra/tfplan ]; then
-            terraform -chdir=infra apply -input=false -auto-approve tfplan
-          else
-            terraform -chdir=infra apply -input=false -auto-approve \
-              -var="admin_password=$(ADMIN_PASSWORD)" \
-              -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-              -var="octopus_url=$(OCTOPUS_URL)" \
-              -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-              -var="alert_email=$(ALERT_EMAIL)" \
-              -var="github_owner=udayreddykandala" \
-              -var="github_repo=rsa-devops-task" \
-              -var="github_branch=main" \
-              -var="octopus_space=Demo" \
-              -var="octopus_environment=Prod" \
-              -var='octopus_roles=["web"]'
-          fi
-        displayName: "Terraform Apply"
+          - task: TerraformCLI@1
+            displayName: Terraform Plan
+            inputs:
+              command: 'plan'
+              workingDirectory: 'infra'
+              environmentServiceName: 'azure-rm-conn'
