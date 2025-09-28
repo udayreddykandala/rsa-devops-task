@@ -1,6 +1,9 @@
 trigger:
 - main
 
+pool:
+  name: MyAgentPool
+
 parameters:
 - name: tf_action
   type: string
@@ -10,69 +13,67 @@ parameters:
   - plan
   - apply
 
-pool:
-  name: MyAgentPool
+stages:
+- stage: Terraform
+  displayName: "Terraform Infrastructure"
+  jobs:
+  - job: TerraformJob
+    displayName: "Run Terraform with CLI"
+    pool:
+      name: MyAgentPool
+    steps:
+    - checkout: self
 
-variables:
-  - group: rsa-devops-vars   # has ADMIN_PASSWORD, ALLOWED_RDP_CIDR, OCTOPUS_URL, OCTOPUS_API_KEY, ALERT_EMAIL
+    # Install Terraform manually (since marketplace tasks are unreliable on your setup)
+    - script: |
+        echo "Installing Terraform..."
+        mkdir -p $(Pipeline.Workspace)/tfbin
+        curl -sLo $(Pipeline.Workspace)/tfbin/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
+        unzip -o $(Pipeline.Workspace)/tfbin/terraform.zip -d $(Pipeline.Workspace)/tfbin
+        echo "##vso[task.prependpath]$(Pipeline.Workspace)/tfbin"
+        terraform -version
+      displayName: "Install Terraform"
 
-steps:
-- checkout: self
+    # Terraform Init
+    - ${{ if eq(parameters.tf_action, 'init') }}:
+      - script: |
+          terraform -chdir=infra init -input=false
+        displayName: "Terraform Init"
 
-# Install Terraform locally (no sudo, no extensions)
-- script: |
-    set -e
-    mkdir -p $(Pipeline.Workspace)/tfbin
-    curl -sLo $(Pipeline.Workspace)/tfbin/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_darwin_arm64.zip
-    unzip -o $(Pipeline.Workspace)/tfbin/terraform.zip -d $(Pipeline.Workspace)/tfbin
-    echo "##vso[task.prependpath]$(Pipeline.Workspace)/tfbin"
-    terraform -version
-  displayName: "Install Terraform"
+    # Terraform Plan
+    - ${{ if eq(parameters.tf_action, 'plan') }}:
+      - script: |
+          terraform -chdir=infra plan -input=false -out=tfplan \
+            -var="admin_password=$(ADMIN_PASSWORD)" \
+            -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+            -var="octopus_url=$(OCTOPUS_URL)" \
+            -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+            -var="alert_email=$(ALERT_EMAIL)" \
+            -var="github_owner=udayreddykandala" \
+            -var="github_repo=rsa-devops-task" \
+            -var="github_branch=main" \
+            -var="octopus_space=Demo" \
+            -var="octopus_environment=Prod" \
+            -var='octopus_roles=["web"]'
+        displayName: "Terraform Plan"
 
-# terraform init
-- ${{ if eq(parameters.tf_action, 'init') }}:
-  - script: |
-      set -e
-      terraform -chdir=infra init -input=false
-    displayName: "terraform init"
-
-# terraform plan
-- ${{ if eq(parameters.tf_action, 'plan') }}:
-  - script: |
-      set -e
-      terraform -chdir=infra plan -input=false -out=tfplan \
-        -var="admin_password=$(ADMIN_PASSWORD)" \
-        -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-        -var="octopus_url=$(OCTOPUS_URL)" \
-        -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-        -var="alert_email=$(ALERT_EMAIL)" \
-        -var="github_owner=udayreddykandala" \
-        -var="github_repo=rsa-devops-task" \
-        -var="github_branch=main" \
-        -var="octopus_space=Demo" \
-        -var="octopus_environment=Prod" \
-        -var='octopus_roles=["web"]'
-    displayName: "terraform plan"
-
-# terraform apply
-- ${{ if eq(parameters.tf_action, 'apply') }}:
-  - script: |
-      set -e
-      # Prefer saved plan if present
-      if [ -f infra/tfplan ]; then
-        terraform -chdir=infra apply -input=false -auto-approve tfplan
-      else
-        terraform -chdir=infra apply -input=false -auto-approve \
-          -var="admin_password=$(ADMIN_PASSWORD)" \
-          -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
-          -var="octopus_url=$(OCTOPUS_URL)" \
-          -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
-          -var="alert_email=$(ALERT_EMAIL)" \
-          -var="github_owner=udayreddykandala" \
-          -var="github_repo=rsa-devops-task" \
-          -var="github_branch=main" \
-          -var="octopus_space=Demo" \
-          -var="octopus_environment=Prod" \
-          -var='octopus_roles=["web"]'
-      fi
-    displayName: "terraform apply"
+    # Terraform Apply
+    - ${{ if eq(parameters.tf_action, 'apply') }}:
+      - script: |
+          if [ -f infra/tfplan ]; then
+            terraform -chdir=infra apply -input=false -auto-approve tfplan
+          else
+            terraform -chdir=infra apply -input=false -auto-approve \
+              -var="admin_password=$(ADMIN_PASSWORD)" \
+              -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+              -var="octopus_url=$(OCTOPUS_URL)" \
+              -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+              -var="alert_email=$(ALERT_EMAIL)" \
+              -var="github_owner=udayreddykandala" \
+              -var="github_repo=rsa-devops-task" \
+              -var="github_branch=main" \
+              -var="octopus_space=Demo" \
+              -var="octopus_environment=Prod" \
+              -var='octopus_roles=["web"]'
+          fi
+        displayName: "Terraform Apply"
