@@ -7,6 +7,16 @@ pool:
 variables:
   terraformVersion: '1.5.7'
 
+  # GitHub variables
+  github_owner: "udayreddy2451"          # 🔹 replace with your GitHub username/org
+  github_repo: "rsa-devops-task"         # 🔹 replace with your repo name
+  github_branch: "main"                  # 🔹 replace with your branch name
+
+  # Octopus variables
+  octopus_space: "Demo"
+  octopus_environment: "Prod"
+  octopus_roles: "web"
+
 stages:
 - stage: Terraform
   displayName: "Terraform Stage"
@@ -34,7 +44,10 @@ stages:
         terraform plan -input=false -out=tfplan \
           -var "octopus_space=$(octopus_space)" \
           -var "octopus_environment=$(octopus_environment)" \
-          -var "octopus_roles=$(octopus_roles)"
+          -var "octopus_roles=$(octopus_roles)" \
+          -var "github_owner=$(github_owner)" \
+          -var "github_repo=$(github_repo)" \
+          -var "github_branch=$(github_branch)"
       displayName: "Terraform Plan"
 
     - script: |
