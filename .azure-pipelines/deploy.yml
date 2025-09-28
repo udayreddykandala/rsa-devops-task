@@ -5,7 +5,6 @@ pool:
   name: MyAgentPool
 
 variables:
-  buildConfiguration: 'Release'
   terraformVersion: '1.5.7'
 
 stages:
@@ -19,7 +18,7 @@ stages:
     steps:
     - script: |
         echo "Installing Terraform $(terraformVersion)"
-        curl -sLo terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_amd64.zip
+        curl -sLo terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_arm64.zip
         unzip terraform.zip
         sudo mv terraform /usr/local/bin/
         terraform -version
@@ -53,7 +52,7 @@ stages:
     steps:
     - script: |
         echo "Installing Octopus CLI"
-        curl -L https://octopus.com/downloads/latest/OctopusTools/macos-x64 -o octo.tar.gz
+        curl -L https://download.octopus.com/octopus-tools/9.1.7/OctopusTools.9.1.7.osx-x64.tar.gz -o octo.tar.gz
         mkdir octo && tar -xzf octo.tar.gz -C octo --strip-components=1
         sudo mv octo/octo /usr/local/bin/
         octo version
