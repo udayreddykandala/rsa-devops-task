@@ -2,101 +2,94 @@ trigger:
 - main
 
 pool:
-  name: MyAgentPool
+  name: MyAgentPool   # Use your self-hosted agent pool
 
 variables:
-  terraformVersion: '1.5.7'
+# 🔹 Pull secrets from variable group
+- group: rsa-devops-vars   
 
-  # GitHub variables
-  github_owner: "udayreddy2451"          # 🔹 replace with your GitHub username/org
-  github_repo: "rsa-devops-task"         # 🔹 replace with your repo name
-  github_branch: "main"                  # 🔹 replace with your branch name
+# 🔹 Terraform version
+- name: terraformVersion
+  value: '1.5.7'
 
-  # Octopus variables
-  octopus_space: "Demo"
-  octopus_environment: "Prod"
-  octopus_roles: "web"
+# 🔹 GitHub repo info
+- name: github_owner
+  value: "udayreddy2451"
+- name: github_repo
+  value: "rsa-devops-task"
+- name: github_branch
+  value: "main"
+
+# 🔹 Octopus Deploy info
+- name: octopus_space
+  value: "Demo"
+- name: octopus_environment
+  value: "Prod"
+- name: octopus_roles
+  value: "web"
 
 stages:
 - stage: Terraform
-  displayName: "Terraform Stage"
+  displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
-    displayName: "Run Terraform CLI"
-    pool:
-      name: MyAgentPool
+    displayName: "Run Terraform"
     steps:
     - script: |
         echo "Installing Terraform $(terraformVersion)"
-        curl -sLo terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_arm64.zip
+        curl -sLo terraform.zip https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_darwin_arm64.zip
         unzip terraform.zip
         sudo mv terraform /usr/local/bin/
-        terraform -version
+        terraform version
       displayName: "Install Terraform"
 
     - script: |
-        cd infra
-        terraform init -input=false
+        terraform init
+      workingDirectory: infra
       displayName: "Terraform Init"
 
     - script: |
-        cd infra
-        terraform plan -input=false -out=tfplan \
-          -var "octopus_space=$(octopus_space)" \
-          -var "octopus_environment=$(octopus_environment)" \
-          -var "octopus_roles=$(octopus_roles)" \
-          -var "github_owner=$(github_owner)" \
-          -var "github_repo=$(github_repo)" \
-          -var "github_branch=$(github_branch)"
+        terraform plan \
+          -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+          -var="admin_password=$(ADMIN_PASSWORD)" \
+          -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var="octopus_url=$(OCTOPUS_URL)" \
+          -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var="alert_email=$(ALERT_EMAIL)" \
+          -var="github_owner=$(github_owner)" \
+          -var="github_repo=$(github_repo)" \
+          -var="github_branch=$(github_branch)" \
+          -var="octopus_space=$(octopus_space)" \
+          -var="octopus_environment=$(octopus_environment)" \
+          -var="octopus_roles=$(octopus_roles)"
+      workingDirectory: infra
       displayName: "Terraform Plan"
 
     - script: |
-        cd infra
-        terraform apply -input=false -auto-approve tfplan
+        terraform apply -auto-approve \
+          -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
+          -var="admin_password=$(ADMIN_PASSWORD)" \
+          -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
+          -var="octopus_url=$(OCTOPUS_URL)" \
+          -var="octopus_api_key=$(OCTOPUS_API_KEY)" \
+          -var="alert_email=$(ALERT_EMAIL)" \
+          -var="github_owner=$(github_owner)" \
+          -var="github_repo=$(github_repo)" \
+          -var="github_branch=$(github_branch)" \
+          -var="octopus_space=$(octopus_space)" \
+          -var="octopus_environment=$(octopus_environment)" \
+          -var="octopus_roles=$(octopus_roles)"
+      workingDirectory: infra
       displayName: "Terraform Apply"
 
-- stage: Octopus
-  displayName: "Octopus Stage"
+- stage: Deploy
+  displayName: "Deploy to Octopus"
   dependsOn: Terraform
   jobs:
   - job: OctopusJob
-    pool:
-      name: MyAgentPool
+    displayName: "Deploy via Octopus"
     steps:
     - script: |
-        echo "Installing Octopus CLI"
-        curl -L https://download.octopus.com/octopus-tools/9.1.7/OctopusTools.9.1.7.osx-x64.tar.gz -o octo.tar.gz
-        mkdir octo && tar -xzf octo.tar.gz -C octo --strip-components=1
-        sudo mv octo/octo /usr/local/bin/
-        octo version
-      displayName: "Install Octopus CLI"
-
-    - script: |
         echo "Pushing package to Octopus..."
-        octo push \
-          --server "$(OCTOPUS_URL)" \
-          --apiKey "$(OCTOPUS_API_KEY)" \
-          --space "$(octopus_space)" \
-          --package "$(Build.ArtifactStagingDirectory)/**/*.zip"
-      displayName: "Octopus Push Package"
-
-    - script: |
-        echo "Creating release..."
-        octo create-release \
-          --server "$(OCTOPUS_URL)" \
-          --apiKey "$(OCTOPUS_API_KEY)" \
-          --space "$(octopus_space)" \
-          --project "rsa-devops-task" \
-          --releaseNumber "1.0.$(Build.BuildId)"
-      displayName: "Octopus Create Release"
-
-    - script: |
-        echo "Deploying release..."
-        octo deploy-release \
-          --server "$(OCTOPUS_URL)" \
-          --apiKey "$(OCTOPUS_API_KEY)" \
-          --space "$(octopus_space)" \
-          --project "rsa-devops-task" \
-          --releaseNumber "1.0.$(Build.BuildId)" \
-          --deployTo "$(octopus_environment)"
-      displayName: "Octopus Deploy Release"
+        echo "## Octopus CLI should be installed separately"
+      displayName: "Octopus Deploy Placeholder"
