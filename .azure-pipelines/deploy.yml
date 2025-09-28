@@ -2,17 +2,15 @@ trigger:
 - main
 
 pool:
-  name: MyAgentPool   # Use your self-hosted agent pool
+  name: MyAgentPool   # Self-hosted agent
 
 variables:
-# 🔹 Pull secrets from variable group
 - group: rsa-devops-vars   
 
-# 🔹 Terraform version
 - name: terraformVersion
   value: '1.5.7'
 
-# 🔹 GitHub repo info
+# GitHub repo info
 - name: github_owner
   value: "udayreddy2451"
 - name: github_repo
@@ -20,7 +18,7 @@ variables:
 - name: github_branch
   value: "main"
 
-# 🔹 Octopus Deploy info
+# Octopus Deploy info
 - name: octopus_space
   value: "Demo"
 - name: octopus_environment
@@ -44,12 +42,12 @@ stages:
       displayName: "Install Terraform"
 
     - script: |
-        terraform init
+        terraform init -input=false
       workingDirectory: infra
       displayName: "Terraform Init"
 
     - script: |
-        terraform plan \
+        terraform plan -input=false \
           -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
           -var="admin_password=$(ADMIN_PASSWORD)" \
           -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
@@ -66,7 +64,7 @@ stages:
       displayName: "Terraform Plan"
 
     - script: |
-        terraform apply -auto-approve \
+        terraform apply -auto-approve -input=false \
           -var="azure_subscription_id=$(AZURE_SUBSCRIPTION_ID)" \
           -var="admin_password=$(ADMIN_PASSWORD)" \
           -var="allowed_rdp_cidr=$(ALLOWED_RDP_CIDR)" \
@@ -90,6 +88,14 @@ stages:
     displayName: "Deploy via Octopus"
     steps:
     - script: |
-        echo "Pushing package to Octopus..."
-        echo "## Octopus CLI should be installed separately"
-      displayName: "Octopus Deploy Placeholder"
+        echo "Installing Octopus CLI..."
+        curl -s https://octopus.com/downloads/latest/octopuscli | bash
+        echo "Creating release and deploying..."
+        octo create-release \
+          --project "rsa-devops-task" \
+          --server "$(OCTOPUS_URL)" \
+          --apiKey "$(OCTOPUS_API_KEY)" \
+          --space "$(octopus_space)" \
+          --releaseNumber "1.0.$(Build.BuildId)" \
+          --deployTo "$(octopus_environment)"
+      displayName: "Deploy to Octopus"
