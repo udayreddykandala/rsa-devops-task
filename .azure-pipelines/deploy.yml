@@ -10,51 +10,56 @@ variables:
   - group: rsa-devops-vars
 
 stages:
+# Terraform Stage
 - stage: Terraform
   displayName: "Terraform Infrastructure"
   jobs:
   - job: TerraformJob
     displayName: "Run Terraform"
     steps:
-    - task: TerraformInstaller@1
-      displayName: "Install Terraform"
-      inputs:
-        terraformVersion: '1.5.7'
+    - script: terraform --version
+      displayName: "Check Terraform Version"
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Init'
-      inputs:
-        command: 'init'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+    - script: terraform init
+      displayName: "Terraform Init"
+      workingDirectory: infra
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Plan'
-      inputs:
-        command: 'plan'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
+    - script: terraform plan -input=false -out=tfplan
+      displayName: "Terraform Plan"
+      workingDirectory: infra
 
-    - task: TerraformCLI@1
-      displayName: 'Terraform Apply'
-      inputs:
-        command: 'apply'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: '-auto-approve'
+    - script: terraform apply -input=false -auto-approve tfplan
+      displayName: "Terraform Apply"
+      workingDirectory: infra
 
+# Octopus Deploy Stage
 - stage: Deploy
   displayName: "Deploy to Octopus"
   dependsOn: Terraform
   jobs:
   - job: OctopusJob
-    displayName: "Deploy via Octopus"
+    displayName: "Octopus Deployment"
     steps:
-    - task: OctopusCreateRelease@4
-      displayName: "Create Octopus Release"
+    - task: OctopusPush@4
+      displayName: "Push package to Octopus"
       inputs:
         OctoConnectedServiceName: 'octopus-conn'
-        Space: 'Demo'
+        Space: '$(octopus_space)'
+        Package: '**/*.zip'
+
+    - task: OctopusCreateRelease@4
+      displayName: "Create Release in Octopus"
+      inputs:
+        OctoConnectedServiceName: 'octopus-conn'
+        Space: '$(octopus_space)'
+        Project: 'rsa-devops-task'
+        ReleaseNumber: '1.0.$(Build.BuildId)'
+
+    - task: OctopusDeployRelease@4
+      displayName: "Deploy Release to Prod"
+      inputs:
+        OctoConnectedServiceName: 'octopus-conn'
+        Space: '$(octopus_space)'
         Project: 'rsa-devops-task'
         ReleaseNumber: '1.0.$(Build.BuildId)'
         DeployTo: 'Prod'
