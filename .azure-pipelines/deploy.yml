@@ -4,53 +4,87 @@ trigger:
 pool:
   name: MyAgentPool
 
+variables:
+  buildConfiguration: 'Release'
+  terraformVersion: '1.5.7'
+
 stages:
 - stage: Terraform
-  displayName: "Terraform Infrastructure"
+  displayName: "Terraform Stage"
   jobs:
   - job: TerraformJob
-    displayName: "Run Terraform locally"
+    displayName: "Run Terraform CLI"
+    pool:
+      name: MyAgentPool
     steps:
-    - checkout: self
-
-    # Install Terraform (latest)
-    - task: TerraformInstaller@0
+    - script: |
+        echo "Installing Terraform $(terraformVersion)"
+        curl -sLo terraform.zip https://releases.hashicorp.com/terraform/${terraformVersion}/terraform_${terraformVersion}_darwin_amd64.zip
+        unzip terraform.zip
+        sudo mv terraform /usr/local/bin/
+        terraform -version
       displayName: "Install Terraform"
-      inputs:
-        terraformVersion: 'latest'
 
-    # Terraform Init (LOCAL backend, no Azure storage account)
-    - task: TerraformCLI@0
+    - script: |
+        cd infra
+        terraform init -input=false
       displayName: "Terraform Init"
-      inputs:
-        command: 'init'
-        workingDirectory: 'infra'
 
-    # Terraform Plan
-    - task: TerraformCLI@0
+    - script: |
+        cd infra
+        terraform plan -input=false -out=tfplan \
+          -var "octopus_space=$(octopus_space)" \
+          -var "octopus_environment=$(octopus_environment)" \
+          -var "octopus_roles=$(octopus_roles)"
       displayName: "Terraform Plan"
-      inputs:
-        command: 'plan'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: |
-          -var "admin_username=udayadmin" \
-          -var "admin_password=MyStrongPassw0rd!" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web"
 
-    # Terraform Apply (auto approve)
-    - task: TerraformCLI@0
+    - script: |
+        cd infra
+        terraform apply -input=false -auto-approve tfplan
       displayName: "Terraform Apply"
-      inputs:
-        command: 'apply'
-        workingDirectory: 'infra'
-        environmentServiceName: 'azure-rm-conn'
-        commandOptions: |
-          -auto-approve \
-          -var "admin_username=udayadmin" \
-          -var "admin_password=MyStrongPassw0rd!" \
-          -var "octopus_space=Demo" \
-          -var "octopus_environment=Prod" \
-          -var "octopus_roles=web"
+
+- stage: Octopus
+  displayName: "Octopus Stage"
+  dependsOn: Terraform
+  jobs:
+  - job: OctopusJob
+    pool:
+      name: MyAgentPool
+    steps:
+    - script: |
+        echo "Installing Octopus CLI"
+        curl -L https://octopus.com/downloads/latest/OctopusTools/macos-x64 -o octo.tar.gz
+        mkdir octo && tar -xzf octo.tar.gz -C octo --strip-components=1
+        sudo mv octo/octo /usr/local/bin/
+        octo version
+      displayName: "Install Octopus CLI"
+
+    - script: |
+        echo "Pushing package to Octopus..."
+        octo push \
+          --server "$(OCTOPUS_URL)" \
+          --apiKey "$(OCTOPUS_API_KEY)" \
+          --space "$(octopus_space)" \
+          --package "$(Build.ArtifactStagingDirectory)/**/*.zip"
+      displayName: "Octopus Push Package"
+
+    - script: |
+        echo "Creating release..."
+        octo create-release \
+          --server "$(OCTOPUS_URL)" \
+          --apiKey "$(OCTOPUS_API_KEY)" \
+          --space "$(octopus_space)" \
+          --project "rsa-devops-task" \
+          --releaseNumber "1.0.$(Build.BuildId)"
+      displayName: "Octopus Create Release"
+
+    - script: |
+        echo "Deploying release..."
+        octo deploy-release \
+          --server "$(OCTOPUS_URL)" \
+          --apiKey "$(OCTOPUS_API_KEY)" \
+          --space "$(octopus_space)" \
+          --project "rsa-devops-task" \
+          --releaseNumber "1.0.$(Build.BuildId)" \
+          --deployTo "$(octopus_environment)"
+      displayName: "Octopus Deploy Release"
